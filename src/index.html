@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' lcu-audio:; connect-src 'self' lcu-audio:;">
+  <title>LCU Reader</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">LCU</div>
+        <div class="brand-text">
+          <strong>Reader</strong>
+          <span>Show Control Decoder</span>
+        </div>
+      </div>
+
+      <button id="btnOpen" class="btn-open">
+        Open LCU File...
+      </button>
+
+      <div class="file-panel" id="filePanel">
+        <div class="file-empty" id="fileEmpty">No file loaded.<br>Open an .lcu or drop one here.</div>
+        <div class="file-load hidden" id="fileLoaded">
+          <div class="file-name" id="fileTitle">-</div>
+          <div class="file-path" id="filePath">-</div>
+          <div class="file-meta" id="fileMeta">-</div>
+        </div>
+      </div>
+
+      <div class="audio-link-box">
+        <button id="btnLinkAudio" class="btn-open">Link Audio Folder</button>
+        <div class="audio-link-status" id="audioLinkStatus">No audio folder linked</div>
+      </div>
+
+      <nav class="nav" id="nav">
+        <button class="nav-item active" data-view="overview">Overview</button>
+        <button class="nav-item" data-view="sequences">Sequences & Cues</button>
+        <button class="nav-item" data-view="audio">Audio Library</button>
+        <button class="nav-item" data-view="phrases">Phrase Presets</button>
+        <button class="nav-item" data-view="routing">Routing Matrix</button>
+        <button class="nav-item" data-view="hardware">Hardware I/O</button>
+        <button class="nav-item" data-view="eq">EQ Curves</button>
+        <button class="nav-item" data-view="raw">Raw Sections</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn-export" id="btnExportJSON">Export JSON</button>
+        <button class="btn-export" id="btnExportCSV">Export CSV</button>
+        <button class="btn-export" id="btnExportAUP">Export Audacity Project</button>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="content">
+
+      <!-- OVERVIEW -->
+      <section class="view active" id="view-overview">
+        <div class="view-head">
+          <h2>Overview</h2>
+          <span class="view-sub">Decoded show-control contents</span>
+        </div>
+        <div class="stat-grid" id="statGrid"></div>
+        <div class="panel" id="ovSummary"></div>
+      </section>
+
+      <!-- SEQUENCES -->
+      <section class="view" id="view-sequences">
+        <div class="view-head">
+          <h2>Sequences & Cues</h2>
+          <span class="view-sub">Show sequences and their timed events (Section S)</span>
+        </div>
+        <div class="seq-layout">
+          <div class="panel seq-list-panel">
+            <input type="text" id="seqFilter" class="filter" placeholder="Filter sequences...">
+            <div class="seq-list" id="seqList"></div>
+          </div>
+          <div class="panel seq-detail-panel">
+            <div class="seq-header" id="seqHeader">
+              <div class="seq-title" id="seqTitle">Select a sequence</div>
+              <div class="badges" id="seqBadges"></div>
+            </div>
+            <div class="seq-actions" id="seqActions">
+              <button id="btnSeqPlay" class="btn-open" disabled>Play sequence audio</button>
+              <button id="btnSeqStop" class="btn-ghost" disabled>Stop</button>
+            </div>
+            <div class="seq-timeline" id="seqTimeline"></div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th></th><th>Timecode</th><th>Sec</th><th>Frame</th><th>Type</th><th>Action</th><th>Target</th><th>Details</th></tr>
+                </thead>
+                <tbody id="seqEvents"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AUDIO -->
+      <section class="view" id="view-audio">
+        <div class="view-head">
+          <h2>Audio Library</h2>
+          <span class="view-sub">Onboard sound files (Section W)</span>
+        </div>
+        <div class="panel table-panel">
+          <div class="playback-process">
+            <label class="chk"><input type="checkbox" id="chkPlayEq" checked> Apply zone EQ</label>
+            <label class="chk"><input type="checkbox" id="chkPlayLevels" checked> Apply level settings</label>
+            <span class="route-sel">
+              Front (bus 0) <select id="selBus0Zone"><option value="0">Zone 1</option><option value="1">Zone 2</option><option value="2">Zone 3</option></select>
+              Sub/Rear (bus 1) <select id="selBus1Zone"><option value="0">Zone 1</option><option value="1">Zone 2</option><option value="2">Zone 3</option></select>
+            </span>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr><th></th><th>ID</th><th>File</th><th>Duration</th><th>Channels</th><th>Sample Rate</th><th>Samples</th><th></th></tr>
+              </thead>
+              <tbody id="waveRows"></tbody>
+            </table>
+          </div>
+          <div class="audio-match-legend"><span class="file-ok">✓</span> exact &middot; <span class="file-ok">≈</span> fuzzy/partial &middot; <span class="file-miss">R</span> radio ref &middot; <span class="file-miss">✗</span> not found</div>
+        </div>
+      </section>
+
+      <!-- PHRASES -->
+      <section class="view" id="view-phrases">
+        <div class="view-head">
+          <h2>Phrase Presets</h2>
+          <span class="view-sub">Playback presets: volume, pitch, fade, speaker bus (Section P)</span>
+        </div>
+        <div class="panel table-panel">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr><th>ID</th><th>Wave</th><th>Track</th><th>Vol L/R</th><th>Pitch</th><th>Fade In/Out</th><th>Bus</th></tr>
+              </thead>
+              <tbody id="phraseRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROUTING -->
+      <section class="view" id="view-routing">
+        <div class="view-head">
+          <h2>Routing Matrix</h2>
+          <span class="view-sub">Group channel → phrase mappings (Section R)</span>
+        </div>
+        <div class="panel table-panel">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr><th>Group</th><th>Channel</th><th>Phrase</th><th>Wave File</th></tr>
+              </thead>
+              <tbody id="routingRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- HARDWARE -->
+      <section class="view" id="view-hardware">
+        <div class="view-head">
+          <h2>Hardware I/O</h2>
+          <span class="view-sub">Triggers, sensors, relays (T) and EQ registers (Q)</span>
+        </div>
+        <div class="io-grid">
+          <div class="panel table-panel">
+            <h3 class="panel-title">Triggers & Sensors</h3>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>ID</th><th>Device</th><th>Kind</th><th>Targets</th></tr>
+                </thead>
+                <tbody id="triggerRows"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel table-panel">
+            <h3 class="panel-title">Parametric EQ Registers</h3>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Profile/Bank</th><th>Register</th><th>Value</th><th>Offset</th></tr>
+                </thead>
+              <tbody id="eqRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EQ CURVES -->
+      <section class="view" id="view-eq">
+        <div class="view-head">
+          <h2>EQ Curves</h2>
+          <span class="view-sub">Onboard 3-zone DSP equalizer (Section Q)</span>
+        </div>
+        <div class="panel eq-panel">
+          <div class="zone-tabs" id="zoneTabs">
+            <button class="zone-tab active" data-zone="0">Zone 1 &middot; Front Headrests</button>
+            <button class="zone-tab" data-zone="1">Zone 2 &middot; Rear Fill</button>
+            <button class="zone-tab" data-zone="2">Zone 3 &middot; Subwoofers</button>
+            <button class="zone-tab" data-zone="-1">All Zones</button>
+          </div>
+          <div class="eq-canvas-wrap">
+            <canvas id="eqCanvas"></canvas>
+          </div>
+          <div class="eq-legend" id="eqLegend"></div>
+          <p class="eq-note">Frequency response reconstructed from the decoded filter bands (biquad, RBJ Audio EQ Cookbook). Band gains come from the Section Q registers (&plusmn;15 dB, 0x40 = 0 dB); band centre frequencies follow the 200 Hz / 500 Hz / 2.8 kHz / 6 kHz template.</p>
+        </div>
+        <div class="io-grid">
+          <div class="panel">
+            <h3 class="panel-title">Filter Bands &mdash; <span id="eqZoneName">Zone 1</span></h3>
+            <div class="band-list" id="eqBands"></div>
+          </div>
+          <div class="panel table-panel">
+            <h3 class="panel-title">EQ Registers</h3>
+            <div class="register-grid" id="eqRegisterGrid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RAW -->
+      <section class="view" id="view-raw">
+        <div class="view-head">
+          <h2>Raw Sections</h2>
+          <span class="view-sub">Every section as stored in the file</span>
+        </div>
+        <div class="panel table-panel">
+          <div class="raw-list" id="rawList"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="lcuDecoder.js"></script>
+  <script src="dsp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

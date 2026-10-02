@@ -1,0 +1,42 @@
+{
+  "name": "lcu-reader",
+  "productName": "LCU Reader",
+  "version": "1.0.0",
+  "description": "Fresh LCU show-control decoder & reader for Rock 'n' Roller Coaster Soundtracker files",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test-decoder.js",
+    "dist": "electron-builder --win portable"
+  },
+  "license": "MIT",
+  "author": "RNRC",
+  "devDependencies": {
+    "electron": "^34.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "allowScripts": {
+    "electron@34.5.8": true
+  },
+  "build": {
+    "appId": "com.rnrc.lcureader",
+    "productName": "LCU Reader",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "LCU-Reader-${version}-portable.exe"
+    }
+  }
+}
