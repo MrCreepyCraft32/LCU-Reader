@@ -460,6 +460,8 @@
           events: events
         });
       });
+
+      out.sequences.sort((a, b) => a.id - b.id);
     }
 
     // Q - parametric EQ registers (one or more profiles, each of 30-reg banks)
