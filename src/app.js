@@ -188,6 +188,7 @@ $('btnOpen').addEventListener('click', async () => {
         <td><span class="tag ${tag}">${e.action}</span></td>
         <td><b>${escapeHtml(e.target || '-')}</b></td>
         <td>${escapeHtml(e.detail)}</td>
+        <td class="mono" style="color:var(--text-faint)">C:${e.cmd} P1:${e.p1} P2:${e.p2}</td>
       </tr>`;
     }).join('');
 
@@ -772,7 +773,22 @@ $('btnOpen').addEventListener('click', async () => {
 
   function chanState(ch) {
     let s = seqPlayback.chans[ch];
-    if (!s) { s = { vol: 127, fade: 127, pan: 64 }; seqPlayback.chans[ch] = s; }
+    if (!s) {
+      let defaultPan;
+      switch (ch) {
+        case 6:
+          defaultPan = 0;
+          break;
+        case 8:
+          defaultPan = 127;
+          break;
+        default:
+          defaultPan = 64;
+          break;
+      }
+      s = { vol: 127, fade: 127, pan: defaultPan };
+      seqPlayback.chans[ch] = s;
+    }
     return s;
   }
 
@@ -970,7 +986,10 @@ $('btnOpen').addEventListener('click', async () => {
       const e = x.e;
       // Negative parameter values mark "no change" in the show data.
       if (e.cmd === 7 && e.p2 >= 0) { chanState(e.p1).vol = e.p2; refreshChannel(e.p1); }
-      else if (e.cmd === 8 && e.p2 >= 0) { chanState(e.p1).pan = e.p2; refreshChannel(e.p1); }
+      else if (e.cmd === 8 && e.p2 >= 0) {
+        chanState(e.p1).pan = (e.p2 === 0) ? 64 : e.p2;
+        refreshChannel(e.p1);
+      }
       else if (e.cmd === 11 && e.p2 >= 0) { chanState(e.p1).fade = e.p2; refreshChannel(e.p1); }
       else if (e.cmd === 128) { cutChannel(e.p1, null, true); }
       else if (e.cmd === 144) { spawnCue(e, x.i, seq, targetTime); }
