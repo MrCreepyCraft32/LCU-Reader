@@ -141,7 +141,7 @@ $('btnOpen').addEventListener('click', async () => {
     state.sequences.forEach(s => {
       const el = document.createElement('div');
       el.className = 'seq-item';
-      el.innerHTML = `<span>${s.id}. ${s.name}</span><span class="count">${s.eventCount}</span>`;
+      el.innerHTML = `<span>${s.id}. ${escapeHtml(s.name)}</span><span class="count">${s.eventCount}</span>`;
       el.addEventListener('click', () => selectSequence(s, el));
       $('seqList').appendChild(el);
     });
@@ -544,6 +544,7 @@ $('btnOpen').addEventListener('click', async () => {
   }
 
   function setAudioInfo(dirPath, files) {
+    audioEngine.buffers.clear();
     audioInfo.path = dirPath;
     audioInfo.linked = true;
     audioInfo.files = files || [];
@@ -827,7 +828,7 @@ $('btnOpen').addEventListener('click', async () => {
 
   // Each cue is loaded into an AudioBuffer and played through its own
   // gain -> fade envelope -> 3-zone EQ chain -> stereo pan graph.
-  function spawnCue(e, idx, seq) {
+  function spawnCue(e, idx, seq, targetTime = null) {
     const phrase = phraseForChannel(e.p1, seq);
     return loadBuffer(e.audioFile).then(buf => {
       if (seqPlayback.stopped) return;
@@ -840,10 +841,15 @@ $('btnOpen').addEventListener('click', async () => {
       src.loop = looped;
       const graph = makeChain(phrase);
       src.connect(graph.gain);
-      const cue = { src, phrase, ch: e.p1, idx, looped, gain: graph.gain, env: graph.env, panner: graph.panner, zoneIdx: graph.zoneIdx, filters: graph.filters, nodes: graph.nodes, finished: false };
+
+      const startAt = targetTime !== null ? Math.max(ctx.currentTime, targetTime) : ctx.currentTime + 0.01;
+
+      const cue = { src, phrase, ch: e.p1, idx, looped, gain: graph.gain, env: graph.env, panner: graph.panner, zoneIdx: graph.zoneIdx, filters: graph.filters, nodes: graph.nodes, finished: false, startAt: startAt };
       cue.gain.gain.value = cueGain(phrase, e.p1);
       cue.panner.pan.value = (chanState(e.p1).pan - 64) / 64;
-      applyFadeEnvelope(cue, buf.duration, looped);
+
+      applyFadeEnvelope(cue, buf.duration, looped, startAt);
+
       seqPlayback.active.push(cue);
       markRow(idx, true);
       src.onended = () => {
@@ -854,7 +860,7 @@ $('btnOpen').addEventListener('click', async () => {
         disposeGraph(cue);
         seqEndedMaybeIdle();
       };
-      src.start(cue.startAt);
+      src.start(startAt);
     }).catch(err => console.warn('Playback error:', err));
   }
 
@@ -873,10 +879,10 @@ $('btnOpen').addEventListener('click', async () => {
   // negative). Schedule them on the cue's envelope gain so the sound ramps up
   // from silence and ramps down into its natural end. Looped samples have no
   // natural end, so only their fade-in applies.
-  function applyFadeEnvelope(cue, bufferDuration, looped) {
+  function applyFadeEnvelope(cue, bufferDuration, looped, customStartAt = null) {
     const ctx = ensureCtx();
     const phrase = cue.phrase || {};
-    const startAt = ctx.currentTime + 0.01;
+    const startAt = customStartAt !== null ? customStartAt : ctx.currentTime + 0.01;
     cue.startAt = startAt;
     const fadeIn = Math.max(0, phrase.fadeIn || 0) / 1000;
     const fadeOut = Math.max(0, Math.abs(phrase.fadeOut || 0)) / 1000;
@@ -954,20 +960,23 @@ $('btnOpen').addEventListener('click', async () => {
     const files = [...new Set(starts.map(x => x.e.audioFile))];
     files.forEach(f => loadBuffer(f).catch(err => console.warn('Audio load failed: ' + f, err)));
 
-    const runCue = (x) => {
+    const ctx = ensureCtx();
+    const startSystemTime = ctx.currentTime + 0.1;
+
+    const runCue = (x, targetTime) => {
       const e = x.e;
       // Negative parameter values mark "no change" in the show data.
       if (e.cmd === 7 && e.p2 >= 0) { chanState(e.p1).vol = e.p2; refreshChannel(e.p1); }
       else if (e.cmd === 8 && e.p2 >= 0) { chanState(e.p1).pan = e.p2; refreshChannel(e.p1); }
       else if (e.cmd === 11 && e.p2 >= 0) { chanState(e.p1).fade = e.p2; refreshChannel(e.p1); }
       else if (e.cmd === 128) { cutChannel(e.p1, null); }
-      else if (e.cmd === 144) { spawnCue(e, x.i, seq); }
+      else if (e.cmd === 144) { spawnCue(e, x.i, seq, targetTime); }
     };
-    const laterCue = (x, delay) => {
-      let id;
-      id = setTimeout(() => {
+
+    const laterCue = (x, delay, targetTime) => {
+      const id = setTimeout(() => {
         seqPlayback.timers = seqPlayback.timers.filter(t => t !== id);
-        runCue(x);
+        runCue(x, targetTime);
         seqEndedMaybeIdle();
       }, delay);
       seqPlayback.timers.push(id);
@@ -975,14 +984,15 @@ $('btnOpen').addEventListener('click', async () => {
 
     let syncDone = false;
     cues.forEach(x => {
-      const delay = Math.round((x.e.timeSeconds - t0) * 1000);
+      const cueTimeInSeq = x.e.timeSeconds - t0;
+      const targetTime = startSystemTime + cueTimeInSeq;
+      const delay = Math.round(cueTimeInSeq * 1000) + 100; // Le délai JS respecte le targetTime
+
       if (delay <= 0 && !syncDone && x.e.cmd === 144) {
-        runCue(x);   // first cue runs inside the click for the autoplay gesture
+        runCue(x, targetTime);
         syncDone = true;
-      } else if (delay <= 0) {
-        laterCue(x, 0);
       } else {
-        laterCue(x, delay);
+        laterCue(x, Math.max(0, delay), targetTime);
       }
     });
 
