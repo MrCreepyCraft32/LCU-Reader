@@ -4,7 +4,7 @@
   const dec = window.LCUReader;
   let state = null; // decoded LCU
   let currentSeq = null;
-  let activeZone = 0; // 0/1/2 = zone, -1 = all zones overlay
+  let activeZone = -1; // 0/1/2 = zone, -1 = all zones overlay
   let audioInfo = { linked: false, path: '', files: [], links: {} };
 
   // Playback DSP state: 3-zone EQ chains + per-channel level tracking.
@@ -32,12 +32,6 @@
     setupDrop();
     setupAudioLinks();
     setupPlaybackSettings();
-    window.addEventListener('resize', () => {
-      if (state && state.eqZones && state.eqZones.length &&
-          $('view-eq').classList.contains('active')) {
-        drawEQ(state.eqZones, activeZone);
-      }
-    });
   }
 
   /* ---------------- Navigation ---------------- */
@@ -50,6 +44,9 @@
       const view = btn.dataset.view;
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       $(`view-${view}`).classList.add('active');
+      if (view === 'eq' && state && state.eqZones && state.eqZones.length) {
+        drawEQ(state.eqZones, activeZone);
+      }
     });
   }
 
@@ -71,7 +68,7 @@ $('btnOpen').addEventListener('click', async () => {
     state = dec.decode(content, filename);
     state.filePath = filePath || null;
     currentSeq = null;
-    activeZone = 0;
+    activeZone = -1;
     stopSequencePlayback();
     audioEngine.buffers = new Map();
     audioEngine.zoneSpecs = [];
@@ -326,7 +323,9 @@ $('btnOpen').addEventListener('click', async () => {
     const active = activeZone === -1 ? zones[0] : zones[activeZone];
     $('eqZoneName').textContent = active.name + (activeZone === -1 ? ' (showing all zones)' : '');
 
-    drawEQ(zones, activeZone);
+    if ($('view-eq').classList.contains('active')) {
+      drawEQ(zones, activeZone);
+    }
 
     $('eqLegend').innerHTML = zones.map((z, i) =>
       `<span class="item"><span class="swatch" style="background:${ZONE_COLORS[i % ZONE_COLORS.length]}"></span>${escapeHtml(z.name)}</span>`
