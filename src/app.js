@@ -819,11 +819,14 @@ $('btnOpen').addEventListener('click', async () => {
   }
 
   // A new START or a STOP command for a channel silences that channel's current cue.
-  function cutChannel(ch, except) {
+  function cutChannel(ch, except, isStopCmd = false) {
     seqPlayback.active
-      .filter(c => c.ch === ch && c !== except)
+      .filter(c => c.ch === ch && c !== except && !(isStopCmd && !c.looped))
       .forEach(c => stopCue(c, true));
-    seqPlayback.active = seqPlayback.active.filter(c => c.ch !== ch || c === except);
+
+    seqPlayback.active = seqPlayback.active.filter(c =>
+      c.ch !== ch || c === except || (isStopCmd && !c.looped)
+    );
   }
 
   // Each cue is loaded into an AudioBuffer and played through its own
@@ -969,7 +972,7 @@ $('btnOpen').addEventListener('click', async () => {
       if (e.cmd === 7 && e.p2 >= 0) { chanState(e.p1).vol = e.p2; refreshChannel(e.p1); }
       else if (e.cmd === 8 && e.p2 >= 0) { chanState(e.p1).pan = e.p2; refreshChannel(e.p1); }
       else if (e.cmd === 11 && e.p2 >= 0) { chanState(e.p1).fade = e.p2; refreshChannel(e.p1); }
-      else if (e.cmd === 128) { cutChannel(e.p1, null); }
+      else if (e.cmd === 128) { cutChannel(e.p1, null, true); }
       else if (e.cmd === 144) { spawnCue(e, x.i, seq, targetTime); }
     };
 
