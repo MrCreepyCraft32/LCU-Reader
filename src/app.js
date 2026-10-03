@@ -958,9 +958,9 @@ $('btnOpen').addEventListener('click', async () => {
     // Audible events: channel START/STOP (play/silence) plus per-channel
     // level events (vol / pan / fade) that shape the running mix.
     const cues = seq.events
-      .map((e, i) => ({ e, i }))
-      .filter(x => ((x.e.cmd === 144 || x.e.cmd === 128) && x.e.audioFile) ||
-                   x.e.cmd === 7 || x.e.cmd === 8 || x.e.cmd === 11);
+      .map((e, i) => ({ e, i }));
+      // .filter(x => ((x.e.cmd === 144 || x.e.cmd === 128) && x.e.audioFile) ||
+      //              x.e.cmd === 7 || x.e.cmd === 8 || x.e.cmd === 11);
     const starts = cues.filter(x => x.e.cmd === 144);
     if (!starts.length) { alert('This sequence has no playable audio events.'); return; }
     stopSequencePlayback();
@@ -975,7 +975,7 @@ $('btnOpen').addEventListener('click', async () => {
     seqPlayback.chans = {};
     ensureCtx().resume();
 
-    const t0 = starts[0].e.timeSeconds;
+    const t0 = cues[0].e.timeSeconds;
     const files = [...new Set(starts.map(x => x.e.audioFile))];
     files.forEach(f => loadBuffer(f).catch(err => console.warn('Audio load failed: ' + f, err)));
 
@@ -993,6 +993,9 @@ $('btnOpen').addEventListener('click', async () => {
       else if (e.cmd === 11 && e.p2 >= 0) { chanState(e.p1).fade = e.p2; refreshChannel(e.p1); }
       else if (e.cmd === 128) { cutChannel(e.p1, null, true); }
       else if (e.cmd === 144) { spawnCue(e, x.i, seq, targetTime); }
+      if (e.p2 === -1) {
+        stopSequencePlayback();
+      }
     };
 
     const laterCue = (x, delay, targetTime) => {
